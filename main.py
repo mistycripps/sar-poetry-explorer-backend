@@ -92,37 +92,38 @@ from typing import Optional
 
 def detect_crisis_type(message: str) -> Optional[str]:
     """
-    Lightweight, deterministic crisis detector for tests and safety routing.
-    Returns:
-        "self"   -> self-harm / suicidal content
-        "others" -> intent to harm others
-        None     -> no clear crisis detected
+    Hard keyword gate. Returns:
+      - "self"   for self-harm / suicide
+      - "others" for harm to others
+      - None     otherwise
     """
-    text = message.lower()
-    # Normalize whitespace a bit so matching is reliable
-    text = " ".join(text.split())
+    text = " ".join(message.lower().split())
 
-    # Self-harm patterns
-    SELF_PATTERNS = [
+    self_patterns = [
         "kill myself",
+        "killing myself",
+        "want to kill myself",
+        "i want to kill myself",
         "end my life",
         "feel suicidal",
+        "i feel suicidal",
         "i am suicidal",
         "i'm suicidal",
         "wish i were dead",
         "wish i was dead",
         "hurt myself",
-        "hurting myself",        # << covers your test
+        "hurting myself",
         "harm myself",
         "self harm",
         "self-harm",
         "off myself",
         "unalive myself",
+        "i want to die",
+        "want to die",
     ]
 
-    # Harm-others patterns
-    HARM_OTHERS_PATTERNS = [
-        "killing my",            # << covers your test
+    harm_others_patterns = [
+        "killing my",
         "kill my",
         "kill him",
         "kill her",
@@ -138,13 +139,14 @@ def detect_crisis_type(message: str) -> Optional[str]:
         "attack",
     ]
 
-    if any(p in text for p in SELF_PATTERNS):
+    if any(p in text for p in self_patterns):
         return "self"
 
-    if any(p in text for p in HARM_OTHERS_PATTERNS):
+    if any(p in text for p in harm_others_patterns):
         return "others"
 
     return None
+
 
 
 
@@ -160,37 +162,30 @@ def detect_crisis_type_via_moderation(message: str) -> Optional[str]:
             input=message,
         )
         result = resp.results[0]
-        cats = result.categories  # object with category booleans
+        cats = result.categories  # typed object
 
-        # Access categories via indexing instead of .get(...)
-        def cat(name: str) -> bool:
-            try:
-                return bool(cats[name])
-            except Exception:
-                return False
+        # categories is an object with attributes like self_harm, self_harm_intent, etc.
+        def cat(attr: str) -> bool:
+            return bool(getattr(cats, attr, False))
 
-        # Self-harm: any of these means "self"
+        # Self-harm / suicide
         if (
-            cat("self-harm")
-            or cat("self-harm/intent")
-            or cat("self-harm/instructions")
+            cat("self_harm")
+            or cat("self_harm_intent")
+            or cat("self_harm_instructions")
         ):
             return "self"
 
-        # Harm others: violence / graphic / threatening / violent illicit
-        if (
-            cat("violence")
-            or cat("violence/graphic")
-            or cat("harassment/threatening")
-            or cat("illicit/violent")
-        ):
+        # Harm to others / violence
+        if cat("violence") or cat("violence_graphic"):
             return "others"
 
-    except Exception as e:
-        # Don't crash the app if moderation fails; just log and fall back
-        print(f"[moderation error] {e}")
+        return None
 
-    return None
+    except Exception as e:
+        print(f"[moderation error] {e}")
+        return None
+
 
 
 
