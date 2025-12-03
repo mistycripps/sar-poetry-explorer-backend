@@ -29,13 +29,17 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(PINECONE_INDEX_NAME)
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="SAR Poetry Finder API")
 
-# Allow your WordPress site (and localhost) to call the API
+ALLOWED_ORIGIN_REGEX = r"https?://(localhost(:\d+)?|127\.0\.0\.1(:\d+)?|.*\.netlify\.app)$"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://sanantonioreview.org"],  # later you can restrict to your domain
-    allow_credentials=True,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
